@@ -1,0 +1,5 @@
+# Windows 批处理必须用 CRLF 检出：
+# cmd.exe 解析 LF-only 的 .bat 会错位，把一行拆成多条"命令"（经典坑）。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

@@ -1,0 +1,101 @@
+# AgentScope 多 Agent 群聊模拟系统 —— 应用配置
+# 说明：YAML 仅做应用配置管理；人设/prompt 的真源在数据库（通过管理页维护）。
+# 首次启动检测到 agents 表为空时会种子导入 5 个示例人设。
+#
+# ⚠️ 所有"凭据 / 端点 / 模型名"都在根目录 .env 里（该文件已被 .gitignore 忽略）。
+#    首次运行请复制 .env.example 为 .env 并填入自己的值。
+#    也可以用真正的环境变量覆盖：同名变量优先级高于 .env。
+#    .env 由 config.DotenvEnvironmentPostProcessor 读取（支持引号 / export / 行尾注释），
+#    从工作目录向上最多 5 层查找；也可用 -Ddotenv.location=... 指定。
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: agentscope-group-chat
+  # 本应用自带 DataSource Bean（config.SqliteDataSource），无需 Hikari
+  main:
+    banner-mode: console
+  jackson:
+    default-property-inclusion: non_null
+
+logging:
+  level:
+    com.example.agentscopegroupchat: INFO
+    io.agentscope: INFO
+
+app:
+  # SQLite 单文件路径（相对工程根目录；自动创建父目录）
+  db-path: ${APP_DB_PATH:data/chat.db}
+  # 可选访问 token：留空表示不校验；公网暴露时建议设置。
+  # 设置后所有 /api/** 需携带请求头 X-Access-Token，或查询参数 token（SSE 用）。
+  access-token: ${APP_ACCESS_TOKEN:}
+
+  chat:
+    # 这两个值定义"示例群"（多群 E1）：启动时若该 id 的群不存在会自动创建（is_sample=1，不允许解散），
+    # 并把人设全部拉进来。也就是多群改造之前"唯一那个群"，老库升级上来观感不变。
+    group-id: default
+    group-name: "摸鱼搭子群"
+    cascade-max-depth: 8          # 级联深度上限
+    speak-quota-percent: 50       # 单轮最多 50% agent 发言
+    context-window-k: 30          # 投喂最近 K 条消息
+    typing-delay-min-ms: 1500     # 拟人打字延迟下限
+    typing-delay-max-ms: 4000     # 拟人打字延迟上限
+    idle-topic-trigger-sec: 60    # 冷场主动开题阈值（秒，B2）
+    max-idle-rounds-without-human: 3  # 连续 N 轮无人应答后停止自发开题（0=不限）
+    mention-ignore-probability: 0.05  # 被 @ 时"装没看见"的概率（B5）
+    speak-max-tokens: 512         # 单条 agent 发言最大 token
+    gate-max-tokens: 512          # 门控调用最大 token（防 JSON 被截断）
+
+  holiday:
+    # 中国法定节假日 / 调休查询（第三方接口，可选）：让 agent 知道"今天到底上不上班、是不是假期"。
+    # 断网 / 接口变更 / 超时都会自动降级为"周一~周五=工作日"，不影响启动。
+    enabled: ${APP_HOLIDAY_ENABLED:true}
+    base-url: ${APP_HOLIDAY_BASE_URL:https://api.apisbo.com/holidays/date}
+    timeout-ms: ${APP_HOLIDAY_TIMEOUT_MS:2500}
+    retry-seconds: ${APP_HOLIDAY_RETRY_SECONDS:600}   # 查询失败后的重试间隔，避免每次拼 prompt 都打接口
+
+  memory:
+    enabled: true
+    trigger-msg-count: 50         # 累计 N 条消息触发记忆提取
+    trigger-idle-sec: 300         # 或空闲 5 分钟触发提取
+    recall-top-k: 10              # 向量召回 top-K
+    rerank-top-k: 3               # rerank 后注入 top-K
+    extract-max-tokens: 2048      # 记忆提取最大 token（JSON 较长，给足防截断）
+
+  vec:
+    enabled: true                 # 尝试启用 sqlite-vec；加载失败自动降级纯 Java 余弦
+    # 需与 embedding 模型维度一致（qwen3.7-text-embedding = 1024，OpenAI text-embedding-3-small = 1536）
+    dimension: ${APP_VEC_DIMENSION:1024}
+    extension-path: ""            # 留空自动提取内置 DLL；填 none 强制走纯 Java 兜底
+
+  model:
+    # 主力发言模型（OpenAI 兼容：qwen-max / gpt-4.1 / deepseek 等）
+    chat:
+      base-url: ${APP_MODEL_CHAT_BASE_URL:}
+      api-key: ${APP_MODEL_CHAT_API_KEY:}
+      model: ${APP_MODEL_CHAT_MODEL:}
+      # 该网关的思考模式下 tool_choice=required 会被拒（400），而 AgentScope 结构化输出
+      # （门控/记忆提取）依赖它，故默认关闭思考。若换成不支持该参数的厂商可置 false。
+      disable-thinking: ${APP_MODEL_CHAT_DISABLE_THINKING:true}
+    # 门控模型（flash 级，如 qwen-flash / gpt-4.1-mini）；留空则回退使用 chat
+    gate:
+      base-url: ${APP_MODEL_GATE_BASE_URL:}
+      api-key: ${APP_MODEL_GATE_API_KEY:}
+      model: ${APP_MODEL_GATE_MODEL:}
+      disable-thinking: ${APP_MODEL_GATE_DISABLE_THINKING:true}
+    # embedding（OpenAI 兼容 /v1/embeddings）；未配置则记忆召回退化为"最近若干条"
+    embedding:
+      base-url: ${APP_MODEL_EMBEDDING_BASE_URL:}
+      api-key: ${APP_MODEL_EMBEDDING_API_KEY:}
+      model: ${APP_MODEL_EMBEDDING_MODEL:}
+      disable-thinking: ${APP_MODEL_EMBEDDING_DISABLE_THINKING:true}
+    # rerank；未配置则跳过 rerank，直接用向量分数排序
+    rerank:
+      # rerank 无 OpenAI 兼容标准：这里填完整 URL ——
+      # DashScope/百炼原生端点：{host}/api/v1/services/rerank/text-rerank/text-rerank
+      base-url: ${APP_MODEL_RERANK_BASE_URL:}
+      api-key: ${APP_MODEL_RERANK_API_KEY:}
+      model: ${APP_MODEL_RERANK_MODEL:}
+      disable-thinking: ${APP_MODEL_RERANK_DISABLE_THINKING:true}

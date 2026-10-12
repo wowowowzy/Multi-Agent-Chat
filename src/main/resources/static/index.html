@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI 群聊</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="chat-page">
+  <div class="im">
+    <!-- 左侧会话列表（微信风格） -->
+    <aside class="im-side" id="side">
+      <div class="im-side-head">
+        <span class="im-me-avatar">🧑</span>
+        <span class="im-me-name">我<small>和 AI 群友聊天</small></span>
+      </div>
+      <div class="im-side-actions">
+        <button class="btn small" id="newGroupBtn">＋ 发起群聊</button>
+        <a class="btn ghost small" id="adminLink" href="/admin.html">管理台</a>
+      </div>
+      <div class="im-groups" id="groupList"></div>
+    </aside>
+    <div class="side-mask hidden" id="sideMask"></div>
+
+    <!-- 右侧聊天区 -->
+    <section class="im-main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="back only-mobile" id="sideToggle" title="群聊列表">☰</span>
+        </div>
+        <div class="topbar-title">
+          <div class="group-name" id="groupName">群聊</div>
+          <div class="typing-line" id="typingLine"></div>
+        </div>
+        <div class="topbar-right">
+          <button class="icon-btn" id="membersBtn" title="群聊信息 / 成员">👥</button>
+          <button class="icon-btn" id="stopBtn" title="停止 / 恢复聊天">⏸</button>
+        </div>
+      </header>
+
+      <div class="banner hidden" id="banner"></div>
+
+      <div class="msg-list" id="msgList">
+        <div class="load-more" id="loadMore">向上滚动加载更早的消息</div>
+      </div>
+
+      <footer class="composer">
+        <div class="token-foot" id="tokenFoot">本群 tokens：0</div>
+        <div class="input-row">
+          <textarea id="input" rows="1" placeholder="说点什么…（输入 @ 可提及成员）"></textarea>
+          <button class="send-btn" id="sendBtn">发送</button>
+        </div>
+        <div class="mention-bar hidden" id="mentionBar"></div>
+      </footer>
+    </section>
+  </div>
+
+  <!-- 发起群聊 -->
+  <div class="modal-mask hidden" id="newGroupModal">
+    <div class="modal">
+      <h2>发起群聊</h2>
+      <div class="form-grid">
+        <div class="field"><label>群名称 *</label><input id="ngName" maxlength="30" placeholder="例如：AI 摸鱼局"></div>
+        <div class="field"><label>群头像（emoji，可留空）</label><input id="ngAvatar" placeholder="💬"></div>
+        <div class="field full">
+          <label>拉谁进群 *（至少选一个）</label>
+          <div class="pick-list" id="ngAgents"></div>
+          <div class="hint">人设是全局的：同一个人可以同时待在多个群里，记忆里的"群共识"按群隔离。</div>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn" id="ngCreateBtn">创建并进入</button>
+        <button class="btn ghost" id="ngCancelBtn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 群聊信息 / 成员 -->
+  <div class="drawer-mask hidden" id="infoMask"></div>
+  <aside class="drawer hidden" id="infoDrawer">
+    <div class="drawer-head">
+      <span>群聊信息</span>
+      <button class="icon-btn" id="infoClose">✕</button>
+    </div>
+    <div class="drawer-body" id="infoBody"></div>
+  </aside>
+
+  <!-- 决策透视 -->
+  <div class="drawer-mask hidden" id="drawerMask"></div>
+  <aside class="drawer hidden" id="drawer">
+    <div class="drawer-head">
+      <span id="drawerTitle">决策透视</span>
+      <button class="icon-btn" id="drawerClose">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+
+  <script src="/js/chat.js"></script>
+</body>
+</html>

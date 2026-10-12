@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理台 · 人设 / 群聊 / 统计 / 模型</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="admin-page">
+  <div class="admin">
+    <h1>群聊管理台</h1>
+    <div class="sub">
+      人设与群聊都以数据库为唯一真源，保存后即时生效 ｜
+      <a href="/" id="chatLink">前往群聊页 →</a>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="agents">Agent 管理</div>
+      <div class="tab" data-tab="groups">群聊管理</div>
+      <div class="tab" data-tab="tokens">Token 统计</div>
+      <div class="tab" data-tab="model">模型配置</div>
+    </div>
+
+    <!-- Tab 1：人设 -->
+    <section class="panel active" id="panel-agents">
+      <div class="card">
+        <div class="btn-row">
+          <button class="btn" id="newAgentBtn">＋ 新增成员</button>
+          <button class="btn ghost" id="reloadBtn">↻ 热重载人设</button>
+          <button class="btn ghost" id="refreshAgentsBtn">刷新列表</button>
+        </div>
+        <table class="grid">
+          <thead>
+            <tr>
+              <th class="avatar-cell">头像</th><th>昵称</th><th>人设</th>
+              <th>啰嗦</th><th>emoji</th><th>响应</th><th>表达欲</th><th>状态</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="agentsBody"></tbody>
+        </table>
+        <div class="hint">
+          停用为逻辑删除：历史消息与个人印象保留，成员不再参与发言。<br>
+          新增人设不会自动进群——人设是全局共享的，进哪个群请到「群聊管理」拉人（或直接在群聊页点 👥 拉人）。
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2：群聊 -->
+    <section class="panel" id="panel-groups">
+      <div class="card">
+        <div class="btn-row">
+          <button class="btn" id="newGroupBtnAdmin">＋ 新建群聊</button>
+          <button class="btn ghost" id="refreshGroupsBtn">刷新列表</button>
+        </div>
+        <div class="group-cards" id="groupCards"></div>
+        <div class="hint">
+          同一个 agent 可以同时待在多个群里：人设与个人印象跨群共享，群共识、聊天记录、停止开关、token 流水按群隔离。<br>
+          示例群（app.chat.group-id）不允许解散。
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3：统计 -->
+    <section class="panel" id="panel-tokens">
+      <div class="card">
+        <div class="btn-row">
+          <button class="btn ghost" id="refreshStatsBtn">刷新统计</button>
+          <button class="btn ghost hidden" id="backToAllBtn">← 返回全部群聊</button>
+        </div>
+        <div class="stat-scope hidden" id="statScope">
+          <span>正在查看：<span class="scope-name" id="scopeName"></span></span>
+          <span class="hint" style="margin:0" id="scopeHint"></span>
+        </div>
+        <div class="stat-cards">
+          <div class="stat-card"><div class="k">累计 tokens</div><div class="v" id="statTotal">0</div></div>
+          <div class="stat-card"><div class="k">今日 tokens</div><div class="v" id="statToday">0</div></div>
+          <div class="stat-card"><div class="k">累计输入 / 输出</div><div class="v" id="statIO">0 / 0</div></div>
+        </div>
+
+        <div id="statByGroupWrap">
+          <h3>按群聊（点一行进去看这个群内每个 agent 的消耗）</h3>
+          <div class="bars" id="drillGroups"></div>
+        </div>
+
+        <div id="statByAgentWrap" class="hidden">
+          <h3>按成员（当前群内）</h3>
+          <div class="bars" id="barsAgent"></div>
+        </div>
+
+        <h3 style="margin-top:22px">按用途</h3>
+        <div class="bars" id="barsPurpose"></div>
+        <div class="hint">每次门控 / 发言 / 记忆 / embedding 调用记一行 token 流水，并记录它属于哪个群。</div>
+      </div>
+    </section>
+
+    <!-- Tab 4：模型配置（首启向导与管理台共用同一套保存逻辑） -->
+    <section class="panel" id="panel-model">
+      <div class="card">
+        <div class="btn-row">
+          <select id="m_preset" class="preset-select"></select>
+          <button class="btn" id="saveModelBtn">保存并立即生效</button>
+          <button class="btn ghost" id="reloadModelBtn">重新读取</button>
+        </div>
+        <div class="hint">
+          配置写在 <code>.env</code>（不进版本库）里；<b>保存后立即热更新，不需要重启</b>。
+          只有「向量维度」改了必须重启（vec0 表的维度在建库时就固定了）。<br>
+          不清楚填什么？在上面选一个「常用服务商」，会自动把地址/模型填好，你只需补 API Key。
+        </div>
+        <div id="modelStatus" class="status-box"></div>
+
+        <div class="cfg-group">
+          <div class="cfg-head">主力发言模型 <span class="tag req">必填</span></div>
+          <div class="cfg-desc">决定 agent「说什么」。每条正式发言都调用它，用质量好一点的模型。</div>
+          <div class="form-grid">
+            <div class="field full"><label>接口地址 baseUrl *（填到 /v1 为止，不要带 /chat/completions）</label>
+              <input id="m_chat_baseUrl" placeholder="https://api.deepseek.com/v1"></div>
+            <div class="field"><label>密钥 API Key *（在服务商控制台创建）</label>
+              <input id="m_chat_apiKey" type="password" autocomplete="off" placeholder="sk-..."></div>
+            <div class="field"><label>模型名 model *（照抄服务商的模型 ID）</label>
+              <input id="m_chat_model" placeholder="deepseek-chat"></div>
+          </div>
+          <div class="cfg-actions"><span class="tool-link" data-clear="chat">清除该组 Key</span></div>
+        </div>
+
+        <div class="cfg-group">
+          <div class="cfg-head">门控模型 <span class="tag">留空 = 复用主力模型</span></div>
+          <div class="cfg-desc">
+            决定每个 agent「要不要接话」——<b>调用量最大的就是这个</b>，建议用最便宜的 flash 级小模型
+            （例：qwen-flash、glm-4-flash）。留空则直接用上面那个主力模型，贵一点但功能不变。
+          </div>
+          <div class="form-grid">
+            <div class="field full"><label>接口地址 baseUrl</label>
+              <input id="m_gate_baseUrl" placeholder="留空 = 用主力模型的地址"></div>
+            <div class="field"><label>密钥 API Key</label>
+              <input id="m_gate_apiKey" type="password" autocomplete="off"></div>
+            <div class="field"><label>模型名 model</label>
+              <input id="m_gate_model" placeholder="留空 = 用主力模型的模型名"></div>
+          </div>
+          <div class="cfg-actions"><span class="tool-link" data-clear="gate">清除该组 Key</span></div>
+        </div>
+
+        <div class="cfg-group">
+          <div class="cfg-head">向量模型（embedding） <span class="tag">可选</span></div>
+          <div class="cfg-desc">
+            把消息和记忆转成向量，长期记忆靠它做语义检索。留空 = 记忆退化成「最近若干条」，功能不报错。
+            <b>配了它就要把下面的「向量维度」填对</b>。
+          </div>
+          <div class="form-grid">
+            <div class="field full"><label>接口地址 baseUrl</label>
+              <input id="m_embedding_baseUrl" placeholder="https://api.siliconflow.cn/v1"></div>
+            <div class="field"><label>密钥 API Key</label>
+              <input id="m_embedding_apiKey" type="password" autocomplete="off"></div>
+            <div class="field"><label>模型名 model</label>
+              <input id="m_embedding_model" placeholder="BAAI/bge-m3"></div>
+          </div>
+          <div class="cfg-actions"><span class="tool-link" data-clear="embedding">清除该组 Key</span></div>
+        </div>
+
+        <div class="cfg-group">
+          <div class="cfg-head">重排模型（rerank） <span class="tag">可选</span></div>
+          <div class="cfg-desc">
+            对召回的候选做精排，让注入的长期记忆更准。留空 = 直接按向量相似度排序（够用）。
+            注意这里要填<b>完整的 rerank 端点</b>，各家格式不一样（例：百炼是
+            <code>.../api/v1/services/rerank/text-rerank/text-rerank</code>）。
+          </div>
+          <div class="form-grid">
+            <div class="field full"><label>接口地址 baseUrl（完整端点）</label>
+              <input id="m_rerank_baseUrl" placeholder="https://api.siliconflow.cn/v1/rerank"></div>
+            <div class="field"><label>密钥 API Key</label>
+              <input id="m_rerank_apiKey" type="password" autocomplete="off"></div>
+            <div class="field"><label>模型名 model</label>
+              <input id="m_rerank_model" placeholder="BAAI/bge-reranker-v2-m3"></div>
+          </div>
+          <div class="cfg-actions"><span class="tool-link" data-clear="rerank">清除该组 Key</span></div>
+        </div>
+
+        <div class="cfg-group">
+          <div class="cfg-head">向量维度 <span class="tag warn">改这个要重启</span></div>
+          <div class="cfg-desc">
+            必须与「向量模型」的输出维度一致，填错会导致记忆写入失败。常见值：
+            bge-m3 / text-embedding-v4 / text-embedding-v3 = <b>1024</b>；
+            text-embedding-3-small = <b>1536</b>；智谱 embedding-3 = <b>2048</b>；nomic-embed-text = <b>768</b>。
+          </div>
+          <div class="form-grid">
+            <div class="field"><label>向量维度</label><input id="m_vecDim" type="number" min="1" max="20000"></div>
+          </div>
+        </div>
+
+        <div class="cfg-group">
+          <div class="cfg-head">进阶</div>
+          <div class="cfg-desc">
+            门控判断与记忆提取靠「工具调用」产出严格 JSON。若你的网关是<b>思考模式</b>
+            （阿里云百炼 / MaaS 上的 qwen3.x、deepseek 等），思考模式会拒绝强制工具调用，必须勾选下面这项。
+            DeepSeek 官方 / OpenAI / 硅基流动 / 智谱<b>请取消勾选</b>（它们的网关不认
+            <code>enable_thinking</code> 这个非标准字段）。
+          </div>
+          <label class="mini-check">
+            <input type="checkbox" id="m_disableThinking">
+            关闭思考模式（请求体带 <code>enable_thinking=false</code>）
+          </label>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Agent 表单弹层 -->
+  <div class="modal-mask hidden" id="agentModal">
+    <div class="modal">
+      <h2 id="modalTitle">新增成员</h2>
+      <div class="form-grid">
+        <div class="field"><label>群昵称 *</label><input id="f_name" placeholder="例如：热心大哥"></div>
+        <div class="field"><label>头像（emoji 或文字）</label><input id="f_avatar" placeholder="😎"></div>
+        <div class="field full"><label>人设 prompt</label><textarea id="f_persona" placeholder="描述这个人的性格、说话风格、喜好……"></textarea></div>
+        <div class="field"><label>啰嗦程度 1-10</label><input id="f_verbosity" type="number" min="1" max="10" value="5"></div>
+        <div class="field"><label>emoji 倾向 1-10</label><input id="f_emoji" type="number" min="1" max="10" value="5"></div>
+        <div class="field"><label>回应速度 1-10（越大越快）</label><input id="f_speed" type="number" min="1" max="10" value="5"></div>
+        <div class="field"><label>表达欲基准 1-10</label><input id="f_eager" type="number" min="1" max="10" value="5"></div>
+        <div class="field full">
+          <label>群内关系
+            <span class="rel-switch" id="relAdvToggle">高级（直接改 JSON）</span>
+          </label>
+          <!-- 简单模式：可视化行编辑器，保存时自动拼成 JSON（存储格式不变） -->
+          <div id="relEditor">
+            <div id="relRows"></div>
+            <div id="relEmpty" class="hint">还没有添加关系。点下面按钮添加，或在左侧填人设即可。</div>
+            <button type="button" class="btn ghost add-rel" id="relAddBtn">＋ 添加一位成员</button>
+            <datalist id="peerList"></datalist>
+          </div>
+          <!-- 高级模式：原始 JSON -->
+          <div id="relRaw" class="hidden">
+            <textarea id="f_rel" placeholder='{"小元气":{"familiarity":8,"affinity":9,"meme":"总爱逗她"}}'></textarea>
+            <div class="hint">JSON 结构：{"对方昵称":{"familiarity":熟悉度0-10,"affinity":好感0-10,"meme":"内部梗或态度"}}；也可直接写中文描述。</div>
+          </div>
+        </div>
+        <div class="field"><label>启用</label>
+          <select id="f_active"><option value="true">启用</option><option value="false">停用（逻辑删除）</option></select></div>
+      </div>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn" id="saveAgentBtn">保存</button>
+        <button class="btn ghost" id="cancelAgentBtn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 群聊表单弹层（新建 / 编辑共用） -->
+  <div class="modal-mask hidden" id="groupModal">
+    <div class="modal">
+      <h2 id="groupModalTitle">新建群聊</h2>
+      <div class="form-grid">
+        <div class="field"><label>群名称 *</label><input id="g_name" maxlength="30" placeholder="例如：AI 摸鱼局"></div>
+        <div class="field"><label>群头像（emoji）</label><input id="g_avatar" placeholder="💬"></div>
+        <div class="field full"><label>群公告（会写进成员视野）</label>
+          <textarea id="g_notice" placeholder="例如：本群只聊摸鱼，禁止内卷"></textarea></div>
+        <div class="field full">
+          <label>成员（勾选 = 在这个群里）</label>
+          <div class="pick-list" id="g_members"></div>
+          <div class="hint">保存时同步成员：新勾选的会被拉进群并触发打招呼；取消勾选的会被移出群（历史消息与个人印象保留）。</div>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn" id="saveGroupBtn">保存</button>
+        <button class="btn ghost" id="cancelGroupBtn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>
